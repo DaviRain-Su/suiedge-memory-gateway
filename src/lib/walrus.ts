@@ -15,7 +15,7 @@ export interface WalrusPublisher {
 }
 
 /** HTTP-backed Walrus client. Walrus's standard interface is:
- *  PUT  {publisher}/v1/store?epochs={n}   body: blob bytes  → 200 with newly-certified blob id
+ *  PUT  {publisher}/v1/blobs?epochs={n}  body: blob bytes  → 200 with newly-certified blob id
  *  GET  {aggregator}/v1/{blobId}           → 200 with blob bytes
  */
 export class HttpWalrusPublisher implements WalrusPublisher {
@@ -24,7 +24,7 @@ export class HttpWalrusPublisher implements WalrusPublisher {
     private aggregatorUrl: string = config().walrusAggregatorUrl,
   ) {}
   async put({ data, epochs = 1 }: { key: string; data: Buffer; epochs?: number }): Promise<{ blobId: string }> {
-    const url = `${this.publisherUrl}/v1/store?epochs=${epochs}`;
+    const url = `${this.publisherUrl}/v1/blobs?epochs=${epochs}`;
     const res = await fetch(url, {
       method: 'PUT',
       body: data as unknown as BodyInit,
@@ -45,13 +45,22 @@ export class HttpWalrusPublisher implements WalrusPublisher {
     return { blobId };
   }
   async get({ blobId }: { blobId: string }): Promise<Buffer> {
-    const url = `${this.aggregatorUrl}/v1/${blobId}`;
-    const res = await fetch(url);
-    if (!res.ok) {
+    const url = `${this.aggregatorUrl}/v1/blobs/${blobId}`;
+    // Walrus aggregator may take a few seconds to propagate a freshly
+    // certified blob. Retry up to 3x with 1s, 2s, 4s backoff.
+    for (let i = 0; i < 3; i++) {
+      const res = await fetch(url);
+      if (res.ok) {
+        const ab = await res.arrayBuffer();
+        return Buffer.from(ab);
+      }
+      if (res.status === 404 && i < 2) {
+        await new Promise((r) => setTimeout(r, 1000 * 2 ** i));
+        continue;
+      }
       throw new GatewayError('NOT_FOUND', `Walrus GET ${blobId}: ${res.status}`);
     }
-    const ab = await res.arrayBuffer();
-    return Buffer.from(ab);
+    throw new GatewayError('NOT_FOUND', `Walrus GET ${blobId} after 3 retries`);
   }
 }
 

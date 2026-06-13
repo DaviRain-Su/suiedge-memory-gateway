@@ -7,3 +7,8 @@ dist
 coverage
 .sui
 .walrus
+.env.testnet
+tsconfig.tsbuildinfo
+move/Move.lock
+move/Published.toml
+move/build/

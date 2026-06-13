@@ -10,7 +10,6 @@
  *     acts as the space owner for the MVP — see README.md.
  */
 import { SuiGrpcClient, type SuiGrpcClientOptions } from '@mysten/sui/grpc';
-import type { ClientWithCoreApi } from '@mysten/sui/client';
 import { Transaction, type TransactionObjectArgument } from '@mysten/sui/transactions';
 import { verifyPersonalMessageSignature } from '@mysten/sui/verify';
 import { bcs } from '@mysten/sui/bcs';
@@ -51,7 +50,8 @@ export interface SuiClientLike {
   }): Promise<boolean>;
 }
 
-const CHANGED_OBJECT_CREATED = 2; // ChangedObject_IdOperation.CREATED
+const ID_OP_CREATED = 'Created';
+const SPACE_ID_LEN = 64; // 0x + 64 hex
 
 function packageId(): string {
   const id = config().suiPackageId;
@@ -64,9 +64,13 @@ function packageId(): string {
   return id;
 }
 
+function hexPad(n: number, prefix: string, width = SPACE_ID_LEN - prefix.length): string {
+  return `0x${prefix}${n.toString(16).padStart(width, '0')}`;
+}
+
 /** Real Sui client. Uses SuiGrpcClient for testnet, EnvKeypairSigner for PTB signing. */
 export class LiveSuiClient implements SuiClientLike {
-  private client: SuiGrpcClient | null;
+  private client: SuiGrpcClient | null = null;
   constructor(client?: SuiGrpcClient) {
     this.client = client ?? null;
   }
@@ -74,41 +78,47 @@ export class LiveSuiClient implements SuiClientLike {
   private ensureClient(): SuiGrpcClient {
     if (this.client) return this.client;
     const network = config().suiNetwork;
-    if (network === 'localnet') {
-      throw new GatewayError('INTERNAL', 'localnet not supported by LiveSuiClient; use a private RPC');
-    }
-    // SuiGrpcClient defaults the baseUrl per `network` when omitted; the
-    // SuiGrpcClientOptions union still requires the field, so we feed an
-    // empty string. Tested against testnet/mainnet/devnet.
-    const opts = { network, baseUrl: '' } as unknown as SuiGrpcClientOptions;
+    const baseUrl =
+      network === 'mainnet' ? 'https://fullnode.mainnet.sui.io:443'
+      : network === 'devnet' ? 'https://fullnode.devnet.sui.io:443'
+      : 'https://fullnode.testnet.sui.io:443';
+    const opts = { network, baseUrl } as SuiGrpcClientOptions;
     this.client = new SuiGrpcClient(opts);
     return this.client;
   }
 
   private async execute(tx: Transaction, label: string): Promise<{
-    effects: { changedObjects?: Array<{ idOperation?: number; objectId?: string }>; digest?: string };
     digest: string;
+    changedObjects: Array<{ idOperation?: string; objectId?: string }>;
   }> {
     const client = this.ensureClient();
-    const signer = getSigner().signer();
+    const signer = getSigner().signer;
     tx.setGasBudget(BigInt(config().suiGasBudget));
     const result = await client.signAndExecuteTransaction({
       transaction: tx,
       signer,
       include: { effects: true },
     });
-    const txResult = (result as { Transaction?: { effects?: { status?: { failed?: boolean; error?: string }; digest?: string; changedObjects?: Array<{ idOperation?: number; objectId?: string }> } } }).Transaction;
-    if (!txResult || txResult.effects?.status?.failed) {
-      const msg = txResult?.effects?.status?.error ?? 'unknown error';
+    const txBlock = (result as {
+      $kind?: string;
+      Transaction?: {
+        digest?: string;
+        status?: { success?: boolean; error?: string };
+        effects?: { changedObjects?: Array<{ idOperation?: string; objectId?: string }> };
+      };
+    }).Transaction;
+    if (!txBlock || txBlock.status?.success === false) {
+      const msg = txBlock?.status?.error ?? 'unknown error';
       throw new GatewayError('INTERNAL', `Move call ${label} failed: ${msg}`);
     }
-    const effects = txResult.effects!;
-    const digest = effects.digest ?? 'unknown';
-    return { effects: effects as { changedObjects?: Array<{ idOperation?: number; objectId?: string }> }, digest };
+    return { digest: txBlock.digest ?? 'unknown', changedObjects: txBlock.effects?.changedObjects ?? [] };
   }
 
-  private firstCreatedObjectId(effects: { changedObjects?: Array<{ idOperation?: number; objectId?: string }> }, kind: string): string {
-    const created = (effects.changedObjects ?? []).filter((c) => c.idOperation === CHANGED_OBJECT_CREATED && c.objectId);
+  private firstCreatedObjectId(
+    changed: Array<{ idOperation?: string; objectId?: string }>,
+    kind: string,
+  ): string {
+    const created = changed.filter((c) => c.idOperation === ID_OP_CREATED && c.objectId);
     if (created.length === 0) {
       throw new GatewayError('INTERNAL', `no CREATED object in effects for ${kind}`);
     }
@@ -121,8 +131,8 @@ export class LiveSuiClient implements SuiClientLike {
       target: `${packageId()}::agent_space::create_space`,
       arguments: [tx.pure.string(args.name)],
     });
-    const { effects, digest } = await this.execute(tx, 'agent_space::create_space');
-    return { spaceId: this.firstCreatedObjectId(effects, 'AgentSpace'), digest };
+    const { digest, changedObjects } = await this.execute(tx, 'agent_space::create_space');
+    return { spaceId: this.firstCreatedObjectId(changedObjects, 'AgentSpace'), digest };
   }
 
   async addMemoryPointer(args: {
@@ -145,12 +155,12 @@ export class LiveSuiClient implements SuiClientLike {
         tx.pure(bcs.vector(bcs.u8()).serialize(hashBytes)),
       ],
     });
-    const { effects, digest } = await this.execute(tx, 'memory_pointer::add_memory_pointer');
-    const pointerId = this.firstCreatedObjectId(effects, 'MemoryPointer');
-    // Approximate version from digest low bits. Service layer reconciles
-    // with the SQLite mirror, updated from AgentSpace's on-chain bump.
-    const version = Number(BigInt('0x' + digest.slice(0, 8)) & BigInt(0x7fffffff));
-    return { pointerId, version, digest };
+    const { digest, changedObjects } = await this.execute(tx, 'memory_pointer::add_memory_pointer');
+    return {
+      pointerId: this.firstCreatedObjectId(changedObjects, 'MemoryPointer'),
+      version: 0, // parsed from AgentSpace.bump_after_pointer on the read side
+      digest,
+    };
   }
 
   async sharePolicy(args: {
@@ -173,8 +183,8 @@ export class LiveSuiClient implements SuiClientLike {
         tx.pure.bool(args.canShare),
       ],
     });
-    const { effects, digest } = await this.execute(tx, 'access_policy::share');
-    return { policyId: this.firstCreatedObjectId(effects, 'AccessPolicy'), digest };
+    const { digest, changedObjects } = await this.execute(tx, 'access_policy::share');
+    return { policyId: this.firstCreatedObjectId(changedObjects, 'AccessPolicy'), digest };
   }
 
   async revokePolicy(args: { spaceId: string; policyId: string; sender: string }): Promise<{ digest: string }> {
@@ -196,50 +206,64 @@ export class LiveSuiClient implements SuiClientLike {
     body: string;
     signature: string;
   }): Promise<boolean> {
-    if (args.signature === 'stub') return true;
-    const client = this.ensureClient() as unknown as ClientWithCoreApi;
-    const message = canonicalString(args.method, args.path, args.body);
+    const message = new TextEncoder().encode(canonicalString(args.method, args.path, args.body));
     try {
-      const pub = await verifyPersonalMessageSignature(
-        new TextEncoder().encode(message),
-        args.signature,
-        { address: args.address, client },
-      );
-      return Boolean(pub);
+      await verifyPersonalMessageSignature(message, args.signature, { address: args.address });
+      return true;
     } catch {
       return false;
     }
   }
 }
 
-/** Mock Sui client for tests + offline dev. Each kind of call has its own counter. */
+/** Canonical signing string: "<METHOD>\n<PATH>\n<sha256-hex-of-body>". */
+export function canonicalString(method: string, path: string, body: string): string {
+  return `${method.toUpperCase()}\n${path}\n${sha256Hex(body)}`;
+}
+
+// ---------------------------------------------------------------------------
+// MockSuiClient — used by tests and dev (when SUI_CLIENT_LIVE=0).
+// Per-op counters drive deterministic ids so first addMemoryPointer
+// returns version=1.
+// ---------------------------------------------------------------------------
+
 export class MockSuiClient implements SuiClientLike {
+  private spaces = new Map<string, { id: string; name: string; owner: string; version: number }>();
+  private policies = new Map<string, { id: string; spaceId: string; subject: string; canRead: boolean; canWrite: boolean; canShare: boolean; revoked: boolean }>();
+  private pointers = new Map<string, { id: string; spaceId: string; kind: 1 | 2 | 3; walrusBlobId: string; contentHash: string; version: number }>();
   private spaceCounter = 0;
   private pointerCounter = 0;
   private policyCounter = 0;
   private revokeCounter = 0;
+  private digestCounter = 0;
 
-  createSpace(_args: { name: string; sender: string }): Promise<SuiMoveCallResult> {
+  async createSpace(args: { name: string; sender: string }): Promise<SuiMoveCallResult> {
     this.spaceCounter += 1;
-    const spaceId = '0x' + sha256Hex(`space:${_args.sender}:${_args.name}:${this.spaceCounter}`).slice(0, 64).padEnd(64, '0');
-    return Promise.resolve({ spaceId, digest: sha256Hex(`digest:${spaceId}`).slice(0, 32) });
+    const id = hexPad(this.spaceCounter, '');
+    this.spaces.set(id, { id, name: args.name, owner: args.sender, version: 0 });
+    this.digestCounter += 1;
+    return { spaceId: id, digest: `mockdigest${this.digestCounter.toString(16).padStart(40, '0')}` };
   }
-  addMemoryPointer(args: {
+
+  async addMemoryPointer(args: {
     spaceId: string;
     kind: 1 | 2 | 3;
     walrusBlobId: string;
     contentHash: string;
     sender: string;
   }): Promise<{ pointerId: string; version: number; digest: string }> {
+    const space = this.spaces.get(args.spaceId);
+    if (!space) throw new GatewayError('NOT_FOUND', `space ${args.spaceId} not found`);
     this.pointerCounter += 1;
-    const pointerId = '0x' + sha256Hex(`pointer:${args.spaceId}:${args.walrusBlobId}:${this.pointerCounter}`).slice(0, 64).padEnd(64, '0');
-    return Promise.resolve({
-      pointerId,
-      version: this.pointerCounter,
-      digest: sha256Hex(`digest:${pointerId}`).slice(0, 32),
-    });
+    const version = this.pointerCounter;
+    const id = hexPad(this.pointerCounter, '');
+    this.pointers.set(id, { ...args, id, version });
+    space.version = version;
+    this.digestCounter += 1;
+    return { pointerId: id, version, digest: `mockdigest${this.digestCounter.toString(16).padStart(40, '0')}` };
   }
-  sharePolicy(args: {
+
+  async sharePolicy(args: {
     spaceId: string;
     subject: string;
     canRead: boolean;
@@ -247,37 +271,48 @@ export class MockSuiClient implements SuiClientLike {
     canShare: boolean;
     sender: string;
   }): Promise<{ policyId: string; digest: string }> {
+    const space = this.spaces.get(args.spaceId);
+    if (!space) throw new GatewayError('NOT_FOUND', `space ${args.spaceId} not found`);
+    if (space.owner !== args.sender) throw new GatewayError('FORBIDDEN', 'only owner can share');
     this.policyCounter += 1;
-    const policyId = '0x' + sha256Hex(`policy:${args.spaceId}:${args.subject}:${this.policyCounter}`).slice(0, 64).padEnd(64, '0');
-    return Promise.resolve({ policyId, digest: sha256Hex(`digest:${policyId}`).slice(0, 32) });
+    const id = hexPad(this.policyCounter, '');
+    this.policies.set(id, { id, spaceId: args.spaceId, subject: args.subject, canRead: args.canRead, canWrite: args.canWrite, canShare: args.canShare, revoked: false });
+    this.digestCounter += 1;
+    return { policyId: id, digest: `mockdigest${this.digestCounter.toString(16).padStart(40, '0')}` };
   }
-  revokePolicy(_args: { spaceId: string; policyId: string; sender: string }): Promise<{ digest: string }> {
-    this.revokeCounter += 1;
-    return Promise.resolve({ digest: sha256Hex(`revoke:${_args.policyId}:${this.revokeCounter}`).slice(0, 32) });
-  }
-  async verifySignature(args: {
-    address: string;
-    method: string;
-    path: string;
-    body: string;
-    signature: string;
-  }): Promise<boolean> {
-    if (args.signature === 'stub') return true;
-    const expected = sha256Hex(`${args.method}|${args.path}|${sha256Hex(args.body)}|${args.address}`).slice(0, 64);
-    return args.signature === expected;
-  }
-}
 
-export function canonicalString(method: string, path: string, body: string): string {
-  return `${method}\n${path}\n${sha256Hex(body)}`;
+  async revokePolicy(args: { spaceId: string; policyId: string; sender: string }): Promise<{ digest: string }> {
+    const space = this.spaces.get(args.spaceId);
+    if (!space) throw new GatewayError('NOT_FOUND', `space ${args.spaceId} not found`);
+    if (space.owner !== args.sender) throw new GatewayError('FORBIDDEN', 'only owner can revoke');
+    const pol = this.policies.get(args.policyId);
+    if (!pol) throw new GatewayError('NOT_FOUND', `policy ${args.policyId} not found`);
+    if (pol.revoked) throw new GatewayError('CONFLICT', `policy ${args.policyId} already revoked`);
+    pol.revoked = true;
+    this.revokeCounter += 1;
+    this.digestCounter += 1;
+    return { digest: `mockdigest${this.digestCounter.toString(16).padStart(40, '0')}` };
+  }
+
+  async verifySignature(): Promise<boolean> {
+    return true;
+  }
+
+  // Test helpers -----------------------------------------------------------
+  _seedSpace(space: { id: string; name: string; owner: string; version: number }): void {
+    this.spaces.set(space.id, space);
+    const idNum = Number.parseInt(space.id.slice(2), 16) || 0;
+    if (idNum > this.spaceCounter) this.spaceCounter = idNum;
+  }
 }
 
 let _singleton: SuiClientLike | null = null;
 
 export function getSuiClient(): SuiClientLike {
   if (_singleton) return _singleton;
-  const live = process.env.SUI_CLIENT_LIVE === '1';
-  _singleton = live ? new LiveSuiClient() : new MockSuiClient();
+  _singleton = process.env.SUI_CLIENT_LIVE === '1'
+    ? new LiveSuiClient()
+    : new MockSuiClient();
   return _singleton;
 }
 
