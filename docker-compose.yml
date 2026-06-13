@@ -20,7 +20,35 @@
 #   WALRUS_AGGREGATOR_URL=https://aggregator.walrus-mainnet.walrus.space
 #   AUTH_STUB_PASS=0
 
+# Offline profile: `docker compose --profile offline up` brings the
+# local Walrus stub alongside the gateway so you can run with zero
+# network access. The gateway envs below point at the stub.
+x-walrus-base: &walrus-base
+  WALRUS_PUBLISHER_URL: ${WALRUS_PUBLISHER_URL:-http://walrus:8080}
+  WALRUS_AGGREGATOR_URL: ${WALRUS_AGGREGATOR_URL:-http://walrus:8080}
+
 services:
+  walrus:
+    profiles: ["offline"]
+    build:
+      context: ./walrus-stub
+      dockerfile: Dockerfile
+    image: suiedge-walrus-stub:local
+    container_name: suiedge-walrus
+    restart: unless-stopped
+    environment:
+      PORT: 8080
+      HOST: 0.0.0.0
+      WALRUS_DATA_DIR: /data
+    volumes:
+      - walrus-data:/data
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8080/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 3s
+
   gateway:
     build:
       context: .
@@ -31,21 +59,24 @@ services:
     ports:
       - "3000:3000"
     environment:
-      # Public Walrus testnet by default. Override for mainnet.
+      # Default to the public Walrus testnet. Set WALRUS_PUBLISHER_URL /
+      # WALRUS_AGGREGATOR_URL in .env.compose to http://walrus:8080 to
+      # route through the local stub (with `docker compose --profile offline up`).
       WALRUS_PUBLISHER_URL: ${WALRUS_PUBLISHER_URL:-https://publisher.walrus-testnet.walrus.space}
       WALRUS_AGGREGATOR_URL: ${WALRUS_AGGREGATOR_URL:-https://aggregator.walrus-testnet.walrus.space}
       WALRUS_EPOCHS: ${WALRUS_EPOCHS:-1}
-      # Sui. If SUI_CLIENT_LIVE=0, the gateway uses MockSuiClient (no chain calls).
       SUI_CLIENT_LIVE: ${SUI_CLIENT_LIVE:-0}
       SUI_PACKAGE_ID: ${SUI_PACKAGE_ID:-}
       SUI_PRIVATE_KEY: ${SUI_PRIVATE_KEY:-}
       SUI_GAS_BUDGET: ${SUI_GAS_BUDGET:-50000000}
-      # Auth. 1 lets demos skip the wallet-signature step.
       AUTH_STUB_PASS: ${AUTH_STUB_PASS:-1}
-      # SQLite file — must be on a persistent volume in production.
       DB_PATH: /var/lib/suiedge/dev.db
       NODE_ENV: production
       PORT: 3000
+    depends_on:
+      walrus:
+        condition: service_healthy
+        required: false
     volumes:
       - suiedge-data:/var/lib/suiedge
     healthcheck:
@@ -58,3 +89,5 @@ services:
 volumes:
   suiedge-data:
     name: suiedge-data
+  walrus-data:
+    name: suiedge-walrus-data

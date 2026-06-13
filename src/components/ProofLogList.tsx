@@ -1,36 +1,29 @@
 'use client';
 
-import { useCurrentAccount, useSignPersonalMessage } from '@mysten/dapp-kit';
-import { canonicalString } from '@/lib/sui';
+import { useCurrentAccount } from '@mysten/dapp-kit';
+import { useSignedFetch } from '@/lib/dapp-kit/useSignedFetch';
 import { useEffect, useState } from 'react';
 import type { ProofLog } from '@/lib/types';
 
 export function ProofLogList({ spaceId, initial }: { spaceId: string; initial?: ProofLog[] | null }) {
   const account = useCurrentAccount();
-  const { mutate: sign } = useSignPersonalMessage();
+  const signedFetch = useSignedFetch();
   const [items, setItems] = useState<ProofLog[] | null>(initial ?? null);
   const [error, setError] = useState<string | null>(null);
 
   async function load() {
     if (!account) return;
     const path = `/v1/spaces/${spaceId}/proof-logs`;
-    const message = canonicalString('GET', path, '');
-    sign(
-      { message: new TextEncoder().encode(message) },
-      {
-        onSuccess: async (res) => {
-          const r = await fetch(path, {
-            headers: { 'X-Sui-Address': account.address, 'X-Sui-Signature': res.signature },
-          });
-          if (!r.ok) { setError(`status ${r.status}`); return; }
-          setItems(await r.json());
-        },
-        onError: (e) => setError(String(e)),
-      },
-    );
+    try {
+      const r = await signedFetch(path);
+      if (!r.ok) { setError(`status ${r.status}`); return; }
+      setItems(await r.json());
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
   }
 
-  useEffect(() => { void load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [account, spaceId]);
+  useEffect(() => { void load(); }, [account, spaceId, signedFetch]);
 
   if (!account && !items) return null;
   if (error) return <p style={{ color: '#f88' }}>{error}</p>;

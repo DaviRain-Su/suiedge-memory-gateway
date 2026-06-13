@@ -1,9 +1,9 @@
 'use client';
 
-import { useCurrentAccount, useSignPersonalMessage } from '@mysten/dapp-kit';
-import { canonicalString } from '@/lib/sui';
+import { useCurrentAccount } from '@mysten/dapp-kit';
 import { useEffect, useState } from 'react';
 import type { AgentSpace } from '@/lib/types';
+import { useSignedFetch } from '@/lib/dapp-kit/useSignedFetch';
 import { SpaceCard } from './SpaceCard';
 
 interface SpaceListProps {
@@ -18,39 +18,27 @@ interface SpaceListProps {
 
 export function SpaceList({ initial = null, ownerQuery }: SpaceListProps) {
   const account = useCurrentAccount();
-  const { mutate: sign } = useSignPersonalMessage();
+  const signedFetch = useSignedFetch();
   const [spaces, setSpaces] = useState<AgentSpace[] | null>(initial);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!account) {
-      // Keep the SSR fallback on screen if we have one.
       if (initial !== null) return;
       setSpaces(null);
       return;
     }
     const path = `/v1/spaces?owner=${account.address}`;
-    const message = canonicalString('GET', path, '');
-    sign(
-      { message: new TextEncoder().encode(message) },
-      {
-        onSuccess: async (res) => {
-          const r = await fetch(path, {
-            headers: {
-              'X-Sui-Address': account.address,
-              'X-Sui-Signature': res.signature,
-            },
-          });
-          if (!r.ok) {
-            setError(`status ${r.status}`);
-            return;
-          }
-          setSpaces(await r.json());
-        },
-        onError: (e) => setError(String(e)),
-      },
-    );
-  }, [account, sign, initial]);
+    signedFetch(path)
+      .then(async (r) => {
+        if (!r.ok) {
+          setError(`status ${r.status}`);
+          return;
+        }
+        setSpaces(await r.json());
+      })
+      .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)));
+  }, [account, signedFetch, initial]);
 
   if (!account && initial === null) {
     return (

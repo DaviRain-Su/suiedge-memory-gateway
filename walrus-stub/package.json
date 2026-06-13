@@ -1,0 +1,15 @@
+{
+  "name": "@suiedge/walrus-stub",
+  "version": "0.1.0",
+  "description": "SuiEdge Walrus local stub — a 100-line Node HTTP server that implements the Walrus publisher/aggregator wire format for offline development and CI.",
+  "type": "module",
+  "main": "./src/server.js",
+  "exports": {
+    ".": "./src/server.js"
+  },
+  "files": ["src"],
+  "scripts": {
+    "start": "node ./src/server.js",
+    "test": "node --test ./tests/*.test.js"
+  }
+}

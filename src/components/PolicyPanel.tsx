@@ -1,13 +1,13 @@
 'use client';
 
-import { useCurrentAccount, useSignPersonalMessage } from '@mysten/dapp-kit';
-import { canonicalString } from '@/lib/sui';
+import { useCurrentAccount } from '@mysten/dapp-kit';
+import { useSignedFetch } from '@/lib/dapp-kit/useSignedFetch';
 import { useEffect, useState } from 'react';
 import type { AccessPolicy } from '@/lib/types';
 
 export function PolicyPanel({ spaceId, initial }: { spaceId: string; initial?: AccessPolicy[] | null }) {
   const account = useCurrentAccount();
-  const { mutate: sign } = useSignPersonalMessage();
+  const signedFetch = useSignedFetch();
   const [policies, setPolicies] = useState<AccessPolicy[] | null>(initial ?? null);
   const [error, setError] = useState<string | null>(null);
   const [subject, setSubject] = useState('');
@@ -30,24 +30,15 @@ export function PolicyPanel({ spaceId, initial }: { spaceId: string; initial?: A
             if (!subject.trim() || !account) return;
             const body = JSON.stringify({ subject, canRead, canWrite, canShare });
             const path = `/v1/spaces/${spaceId}/share`;
-            const message = canonicalString('POST', path, body);
-            sign(
-              { message: new TextEncoder().encode(message) },
-              {
-                onSuccess: async (res) => {
-                  const r = await fetch(path, {
-                    method: 'POST',
-                    headers: { 'content-type': 'application/json', 'X-Sui-Address': account.address, 'X-Sui-Signature': res.signature },
-                    body,
-                  });
-                  if (!r.ok) { setError(`status ${r.status}`); return; }
-                  const rec = await r.json();
-                  setPolicies((prev) => [...(prev ?? []), rec]);
-                  setSubject('');
-                },
-                onError: (err) => setError(String(err)),
-              },
-            );
+            try {
+              const r = await signedFetch(path, { method: 'POST', body });
+              if (!r.ok) { setError(`status ${r.status}`); return; }
+              const rec = await r.json();
+              setPolicies((prev) => [...(prev ?? []), rec]);
+              setSubject('');
+            } catch (err: unknown) {
+              setError(err instanceof Error ? err.message : String(err));
+            }
           }}
           style={{ marginBottom: 16 }}
         >

@@ -1,0 +1,21 @@
+{
+  "name": "@suiedge/openai-fc",
+  "version": "0.1.0",
+  "description": "OpenAI function calling adapter for SuiEdge Memory Gateway. Raw JSON Schema, decoupled DI: pass your own fetch / OpenAI-compatible client.",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "files": ["src", "README.md"],
+  "scripts": {
+    "test": "node --experimental-strip-types --test tests/index.test.ts"
+  },
+  "dependencies": {
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.4"
+  }
+}

@@ -31,6 +31,41 @@ Click **Deploy**. After ~2 minutes the service is reachable at
 curl -i https://<your-app>.up.railway.app/api/v1/spaces
 ```
 
+## MCP server (Streamable HTTP)
+
+The gateway ships a second MCP transport on `pnpm mcp:http` for
+HTTP-based MCP clients (vs the default stdio one for
+`pnpm mcp`). Stateless: one transport per request, no session
+handshake, so any JSON-RPC 2.0 client works.
+
+| Endpoint | Method | Notes |
+|----------|--------|-------|
+| `/mcp` | POST | JSON-RPC 2.0 (`initialize`, `tools/list`, `tools/call`) |
+| `/mcp` | GET | SSE stream for server-initiated events (stateless mode returns 405) |
+| `/mcp` | DELETE | Session teardown (no-op in stateless mode) |
+| `/healthz` | GET | Liveness, returns `{ ok, name, transport: 'streamable-http' }` |
+
+Quickstart:
+
+```bash
+pnpm mcp:http           # listens on http://0.0.0.0:7000/mcp
+PORT=8080 pnpm mcp:http  # override port
+```
+
+In production, run it as a sidecar or second container:
+
+```bash
+docker run -d -p 7000:7000 suiedge:local node --experimental-strip-types src/mcp/http.ts
+# or, with compose, add a second service that shares DB_PATH
+```
+
+Auth note: the MCP server uses `SUI_OWNER_ADDRESS` directly and
+does **not** enforce the `X-Sui-Address` / `X-Sui-Signature`
+headers. Run it on a private network or behind an auth proxy in
+production. The REST surface on port 3000 is the only
+externally-signed entry point.
+
+
 ## Command-line deploy
 
 ```bash
@@ -125,3 +160,52 @@ Verify the live deploy:
 curl -i http://localhost:3000/api/v1/spaces
 # expect HTTP 200 with a JSON array (empty for a fresh volume)
 ```
+
+## Fully offline (no network)
+
+For demos on a plane, in CI, or in a classified network, the
+`offline` Compose profile also brings up the local **Walrus stub**
+(`walrus-stub/`) — a 100-line Node HTTP server that implements
+the Walrus publisher/aggregator wire format with on-disk storage.
+
+```bash
+# 1. Force the gateway to point at the local stub instead of the
+#    public testnet. These two env vars override the compose defaults.
+cat > .env.compose <<'EOF'
+WALRUS_PUBLISHER_URL=http://walrus:8080
+WALRUS_AGGREGATOR_URL=http://walrus:8080
+SUI_CLIENT_LIVE=0          # use MockSuiClient; no chain calls
+AUTH_STUB_PASS=1
+EOF
+
+# 2. Bring up gateway + walrus stub. Named volumes persist both
+#    the SQLite file and the stub's blob store across restarts.
+docker compose --profile offline --env-file .env.compose up
+```
+
+What you get:
+
+- Gateway: `http://localhost:3000`
+- Walrus stub: `http://localhost:8080/healthz` (smoke check)
+- Blob storage: `suiedge-walrus-data` named volume
+  (`docker volume inspect suiedge-walrus-data`)
+- SQLite: `suiedge-data` named volume
+
+Useful commands:
+
+```bash
+# Smoke the stub directly
+curl -i http://localhost:8080/healthz
+curl -i http://localhost:8080/v1/blobs    # list stored blobs
+
+# Stop without losing data
+docker compose --profile offline down
+
+# Nuke and start fresh
+docker compose --profile offline down -v
+```
+
+The stub is also useful for **integration tests** that need a real
+HTTP Walrus shape. See `walrus-stub/tests/server.test.js` for the
+6 end-to-end tests (boot, PUT/GET round-trip, 404, content
+addressing, listing, empty-body rejection).

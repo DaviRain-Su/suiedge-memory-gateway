@@ -1,13 +1,13 @@
 'use client';
 
-import { useCurrentAccount, useSignPersonalMessage } from '@mysten/dapp-kit';
-import { canonicalString } from '@/lib/sui';
+import { useCurrentAccount } from '@mysten/dapp-kit';
+import { useSignedFetch } from '@/lib/dapp-kit/useSignedFetch';
 import { useEffect, useState } from 'react';
 import type { ContextBundle } from '@/lib/types';
 
 export function MemoryTimeline({ spaceId, initial }: { spaceId: string; initial?: ContextBundle | null }) {
   const account = useCurrentAccount();
-  const { mutate: sign } = useSignPersonalMessage();
+  const signedFetch = useSignedFetch();
   const [bundle, setBundle] = useState<ContextBundle | null>(initial ?? null);
   const [error, setError] = useState<string | null>(null);
   const [writing, setWriting] = useState(false);
@@ -16,26 +16,19 @@ export function MemoryTimeline({ spaceId, initial }: { spaceId: string; initial?
   async function load() {
     if (!account) return;
     const path = `/v1/spaces/${spaceId}/context?maxItems=50`;
-    const message = canonicalString('GET', path, '');
-    sign(
-      { message: new TextEncoder().encode(message) },
-      {
-        onSuccess: async (res) => {
-          const r = await fetch(path, {
-            headers: { 'X-Sui-Address': account.address, 'X-Sui-Signature': res.signature },
-          });
-          if (!r.ok) {
-            setError(`status ${r.status}`);
-            return;
-          }
-          setBundle(await r.json());
-        },
-        onError: (e) => setError(String(e)),
-      },
-    );
+    try {
+      const r = await signedFetch(path);
+      if (!r.ok) {
+        setError(`status ${r.status}`);
+        return;
+      }
+      setBundle(await r.json());
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
   }
 
-  useEffect(() => { void load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [account, spaceId]);
+  useEffect(() => { void load(); }, [account, spaceId, signedFetch]);
 
   if (!account && !bundle) return <p>Connect a wallet to view this space's memory.</p>;
   if (error) return <p style={{ color: '#f88' }}>error: {error}</p>;
@@ -51,28 +44,16 @@ export function MemoryTimeline({ spaceId, initial }: { spaceId: string; initial?
           setWriting(true);
           const body = JSON.stringify({ kind: 'note', payload: draft });
           const path = `/v1/spaces/${spaceId}/memories`;
-          const message = canonicalString('POST', path, body);
-          sign(
-            { message: new TextEncoder().encode(message) },
-            {
-              onSuccess: async (res) => {
-                const r = await fetch(path, {
-                  method: 'POST',
-                  headers: {
-                    'content-type': 'application/json',
-                    'X-Sui-Address': account.address,
-                    'X-Sui-Signature': res.signature,
-                  },
-                  body,
-                });
-                setWriting(false);
-                if (!r.ok) { setError(`status ${r.status}`); return; }
-                setDraft('');
-                await load();
-              },
-              onError: (err) => { setWriting(false); setError(String(err)); },
-            },
-          );
+          try {
+            const r = await signedFetch(path, { method: 'POST', body });
+            setWriting(false);
+            if (!r.ok) { setError(`status ${r.status}`); return; }
+            setDraft('');
+            await load();
+          } catch (err: unknown) {
+            setWriting(false);
+            setError(err instanceof Error ? err.message : String(err));
+          }
         }}
         style={{ marginBottom: 16 }}
       >

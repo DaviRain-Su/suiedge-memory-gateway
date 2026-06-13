@@ -1,32 +1,43 @@
 # SuiEdge Memory Gateway — SDKs
 
-Three adapters, all built on the same `SuiEdgeClient` HTTP client.
+Five adapters, all built on the same `SuiEdgeClient` HTTP client.
 
 ## Layout
 
 ```
 sdks/
-  client-sdk/   # plain HTTP client. No AI deps. Use anywhere.
-  ai-sdk/       # Vercel AI SDK adapter (9 tool() definitions)
-  langchain/    # LangChain adapter (9 DynamicTool definitions)
+  client-sdk/      # plain HTTP client. No AI deps. Use anywhere.
+  ai-sdk/          # Vercel AI SDK adapter (9 tool() definitions)
+  langchain/       # LangChain adapter (9 DynamicTool definitions)
+  anthropic-sdk/   # Anthropic Claude tool use adapter
+                   #   (9 tools + runAgent() helper that drives tool_use)
+  openai-fc/       # OpenAI "function calling" raw JSON Schema adapter
+                   #   (9 functions + runOpenAIAgent() helper)
 ```
 
-All three sign the canonical `${method}\n${path}\nsha256(body)` string
+All five sign the canonical `${method}\n${path}\nsha256(body)` string
 with the Sui wallet, so the gateway's `verifyPersonalMessageSignature`
 verifies it on every request.
+
+The AI adapters are decoupled-DI: the `tool()` (AI SDK), `DynamicTool`
+(LangChain), `anthropic: AnthropicLike` and `openai: OpenAILike` are
+all passed in by the consumer. We never `import 'ai'` /
+`'@langchain/core'` / `'@anthropic-ai/sdk'` / `'openai'` from the
+adapter — the consumer picks their model and SDK version.
 
 ## Install (consumer)
 
 ```bash
 npm install @suiedge/client-sdk
-# optional:
-npm install @suiedge/ai-sdk ai zod
-npm install @suiedge/langchain @langchain/core zod
+# optional, pick one or more:
+npm install @suiedge/ai-sdk       ai                zod
+npm install @suiedge/langchain    @langchain/core   zod
+npm install @suiedge/anthropic-sdk @anthropic-ai/sdk zod
+npm install @suiedge/openai-fc                          zod
 ```
 
-The `@suiedge/ai-sdk` and `@suiedge/langchain` packages are not yet
-published to npm; for now `pnpm` workspaces into this monorepo. The
-gate is to publish after the hackathon.
+None of the SDKs is published to npm yet; this monorepo uses pnpm
+workspaces. Publish is the post-hackathon step.
 
 ## Quick start (Vercel AI SDK)
 
@@ -61,7 +72,45 @@ const tools = suiedgeLangChainTools({ client, dynamicTool: DynamicTool, defaultS
 // pass `tools` to your AgentExecutor
 ```
 
-## Quick start (raw HTTP)
+## Quick start (Anthropic Claude)
+
+```ts
+import Anthropic from '@anthropic-ai/sdk';
+import { SuiEdgeClient } from '@suiedge/client-sdk';
+import { runAgent } from '@suiedge/anthropic-sdk';
+
+const anthropic = new Anthropic();
+const client = new SuiEdgeClient({ baseUrl, signer });
+
+const r = await runAgent({
+  client,
+  anthropic,
+  model: 'claude-3-5-sonnet-20241022',
+  prompt: 'Create a space named "agent-1" and remember "I prefer concise answers."',
+  defaultSpaceId: spaceId,
+  maxTurns: 6,
+});
+```
+
+## Quick start (OpenAI / OpenAI-compatible)
+
+```ts
+import OpenAI from 'openai';
+import { SuiEdgeClient } from '@suiedge/client-sdk';
+import { runOpenAIAgent } from '@suiedge/openai-fc';
+
+const openai = new OpenAI();
+const client = new SuiEdgeClient({ baseUrl, signer });
+
+const r = await runOpenAIAgent({
+  client,
+  openai,    // any object with chat.create()
+  model: 'gpt-4o',
+  prompt: 'Create a space named "agent-1" and remember "I prefer concise answers."',
+});
+```
+
+## Quick start (raw HTTP / curl / serverless)
 
 ```ts
 import { SuiEdgeClient } from '@suiedge/client-sdk';
@@ -91,9 +140,24 @@ SUI_OWNER=0x... node --experimental-strip-types examples/agent-rewrite/index.ts
 ## Tests
 
 ```bash
-cd sdks/client-sdk && node --experimental-strip-types --test tests/*.test.ts
-cd sdks/ai-sdk      && node --experimental-strip-types --test tests/*.test.ts
-cd sdks/langchain   && node --experimental-strip-types --test tests/*.test.ts
+pnpm test:sdk
 ```
 
-All three run on Node 22+ with no build step (`--experimental-strip-types`).
+Runs all 5 SDK test files (23 tests total) on Node 22+ with
+`--experimental-strip-types`. No build step.
+
+## Tool surface
+
+All 5 SDKs expose the same 9 ops mapped to their framework's idioms:
+
+| SuiEdge op | Vercel AI SDK | LangChain | Anthropic | OpenAI FC | Raw HTTP |
+|---|---|---|---|---|---|
+| `space_create` | `space_create` | `suiedge_space_create` | `space_create` | `space_create` | `client.createSpace()` |
+| `space_list` | `space_list` | `suiedge_space_list` | `space_list` | `space_list` | `client.listSpaces()` |
+| `memory_write` | `memory_write` | `suiedge_memory_write` | `memory_write` | `memory_write` | `client.writeMemory()` |
+| `memory_search` | `memory_search` | `suiedge_memory_search` | `memory_search` | `memory_search` | `client.searchMemories()` |
+| `context_load` | `context_load` | `suiedge_context_load` | `context_load` | `context_load` | `client.loadContext()` |
+| `artifact_save` | `artifact_save` | `suiedge_artifact_save` | `artifact_save` | `artifact_save` | `client.writeArtifact()` |
+| `trace_log` | `trace_log` | `suiedge_trace_log` | `trace_log` | `trace_log` | `client.writeProofLog()` |
+| `policy_share` | `policy_share` | `suiedge_policy_share` | `policy_share` | `policy_share` | `client.sharePolicy()` |
+| `policy_revoke` | `policy_revoke` | `suiedge_policy_revoke` | `policy_revoke` | `policy_revoke` | `client.revokePolicy()` |
