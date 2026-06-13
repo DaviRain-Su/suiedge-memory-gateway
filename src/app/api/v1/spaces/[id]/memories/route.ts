@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { errorResponse, GatewayError } from '@/lib/errors';
 import { requireAuth } from '@/lib/auth';
 import { writeMemory, listMemories } from '@/lib/service/memories';
+import { searchMemories } from '@/lib/service/search';
 import type { WriteMemoryRequest } from '@/lib/types';
 
 const WriteBody = z.object({
@@ -32,9 +33,17 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
   try {
     const { id: spaceId } = await ctx.params;
     const url = new URL(req.url);
+    const query = url.searchParams.get('query') ?? '';
     const limit = Number(url.searchParams.get('limit') ?? 50);
-    const path = `/v1/spaces/${spaceId}/memories?limit=${limit}`;
+    const path = query
+      ? `/v1/spaces/${spaceId}/memories?query=${encodeURIComponent(query)}&limit=${limit}`
+      : `/v1/spaces/${spaceId}/memories?limit=${limit}`;
     const auth = await requireAuth(req.headers, 'GET', path, '');
+
+    if (query) {
+      const hits = await searchMemories({ spaceId, caller: auth.address, query, limit });
+      return NextResponse.json(hits);
+    }
     const recs = listMemories({ spaceId, caller: auth.address, limit });
     return NextResponse.json(recs);
   } catch (err) {

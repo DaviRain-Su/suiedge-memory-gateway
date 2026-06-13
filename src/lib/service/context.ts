@@ -1,6 +1,10 @@
 /**
  * Service: ContextBundle. Reads the most recent memory blobs for a space,
  * fetches the bodies from Walrus, and returns them in version order.
+ *
+ * When `query` is provided, items are ranked by relevance to the query
+ * (BM25-lite, same engine as `searchMemories`); when omitted, items are
+ * returned in version-DESC order. Either way we cap at `maxItems`.
  */
 import { openStore } from '../store';
 import { GatewayError } from '../errors';
@@ -8,13 +12,15 @@ import { getWalrus } from '../walrus';
 import { getSpace } from './spaces';
 import { getPolicy } from './policy';
 import type { ContextBundle } from '../types';
+import { searchMemories, type SearchHit } from './search';
 
 export async function loadContext(input: {
   spaceId: string;
   caller: string;
   maxItems?: number;
+  query?: string;
 }): Promise<ContextBundle> {
-  const { spaceId, caller, maxItems = 50 } = input;
+  const { spaceId, caller, maxItems = 50, query } = input;
   const cap = Math.min(Math.max(maxItems, 1), 200);
   const space = getSpace(spaceId);
   if (!space) {
@@ -26,6 +32,25 @@ export async function loadContext(input: {
       throw new GatewayError('FORBIDDEN', 'no read policy for caller');
     }
   }
+
+  // Ranked path
+  if (query && query.length > 0) {
+    const hits: SearchHit[] = await searchMemories({ spaceId, caller, query, limit: cap });
+    return {
+      spaceId,
+      query,
+      items: hits.map((h) => ({
+        kind: h.kind,
+        version: h.version,
+        contentHash: h.contentHash,
+        content: h.body,
+        score: h.score,
+        excerpt: h.excerpt,
+      })),
+    };
+  }
+
+  // Version-DESC path
   const db = openStore();
   const rows = db
     .prepare(

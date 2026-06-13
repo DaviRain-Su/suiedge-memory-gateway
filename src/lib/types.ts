@@ -89,11 +89,14 @@ export interface RevokeRequest {
 // Responses
 export interface ContextBundle {
   spaceId: string;
+  query?: string;
   items: Array<{
     kind: 'summary' | 'decision' | 'context' | 'note';
     version: number;
     contentHash: string;
     content: string;
+    score?: number;
+    excerpt?: string;
   }>;
 }
 

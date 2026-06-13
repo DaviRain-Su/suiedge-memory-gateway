@@ -60,6 +60,12 @@ Dashboard screenshots (live data):
 ![home](./screenshots/01-home.png)
 ![space detail](./screenshots/02-space-detail.png)
 
+**Live demo recording (32s preview, captured via Playwright against real Sui + Walrus testnet):**
+
+![demo](./demo.gif)
+
+[Full MP4 (0.33 MB)](./demo.mp4) · recorded with `scripts/record-video.mjs` against the live dev server after `scripts/demo.sh` ran.
+
 ## Links (judge start here)
 
 - **Repository**: https://github.com/DaviRain-Su/suiedge-memory-gateway

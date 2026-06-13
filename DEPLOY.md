@@ -92,5 +92,36 @@ docker run -p 3000:3000 \
   -v $(pwd)/data:/data \
   suiedge
 ```
-
 Then visit `http://localhost:3000/`.
+
+## Docker Compose
+
+For local-or-self-hosting with a single command:
+
+```bash
+cp .env.compose.example .env.compose   # edit values
+docker compose --env-file .env.compose up
+```
+
+What you get:
+
+- Gateway reachable at `http://localhost:3000`
+- SQLite file at `/var/lib/suiedge/dev.db` on a named volume
+  (`suiedge-data`) that survives restarts
+- Walrus testnet endpoints baked in (override for mainnet)
+- Optional offline mode: leave `SUI_CLIENT_LIVE=0` and the
+  gateway uses the in-process mocks + a seeded demo space
+
+Production tweak for Compose:
+
+- Set `SUI_CLIENT_LIVE=1`, fill `SUI_PRIVATE_KEY` and `SUI_PACKAGE_ID`
+- Set `AUTH_STUB_PASS=0` (real wallet signature required)
+- Override `WALRUS_PUBLISHER_URL` / `WALRUS_AGGREGATOR_URL` to mainnet
+- Use a managed volume or move `DB_PATH` to a real persistent disk
+
+Verify the live deploy:
+
+```bash
+curl -i http://localhost:3000/api/v1/spaces
+# expect HTTP 200 with a JSON array (empty for a fresh volume)
+```

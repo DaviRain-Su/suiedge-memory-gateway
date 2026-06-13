@@ -60,6 +60,12 @@ Dashboard 截图（live 数据）：
 ![首页](./screenshots/01-home.png)
 ![空间详情](./screenshots/02-space-detail.png)
 
+**Live Demo 录像（32 秒预览，由 Playwright 对真 Sui + Walrus testnet 抓取）：**
+
+![demo](./demo.gif)
+
+[完整 MP4（0.33 MB）](./demo.mp4) · 用 `scripts/record-video.mjs` 在跑过 `scripts/demo.sh` 之后对真 dev 服务器录制。
+
 ## 链接（评委从这里开始）
 
 - **代码仓库**：https://github.com/DaviRain-Su/suiedge-memory-gateway
