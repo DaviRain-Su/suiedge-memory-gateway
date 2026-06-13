@@ -69,7 +69,15 @@ policy.revoke
 - 第 4 天：访问策略、共享/撤销、多 Agent 演示。
 - 第 5 天：ProofLog、工件上传、Dashboard 打磨。
 - 第 6 天：部署、README、提交文案、五分钟演示视频。
-- 第 6 天：部署、README、提交文案、五分钟演示视频。
+
+## 快速链接
+
+- **GitHub 仓库**：https://github.com/DaviRain-Su/suiedge-memory-gateway
+- **一键部署**：https://railway.com/new/template?template=https%3A%2F%2Fgithub.com%2FDaviRain-Su%2Fsuiedge-memory-gateway
+- **部署指南**：[DEPLOY.md](./DEPLOY.md)
+- **Demo 视频脚本**：[docs/STORYBOARD.md](./docs/STORYBOARD.md)、[docs/RECORDING.md](./docs/RECORDING.md)
+- **提交文案**：[docs/SUBMISSION.md](./docs/SUBMISSION.md)
+
 ## 本地运行
 
 ```bash

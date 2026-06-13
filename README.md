@@ -70,7 +70,13 @@ policy.revoke
 - Day 5: ProofLog, artifact upload, dashboard polish.
 - Day 6: deploy, README, submission text, five-minute demo video.
 
-[Chinese version](./README.zh.md)
+## Quick links
+
+- **GitHub**: https://github.com/DaviRain-Su/suiedge-memory-gateway
+- **One-click deploy**: https://railway.com/new/template?template=https%3A%2F%2Fgithub.com%2FDaviRain-Su%2Fsuiedge-memory-gateway
+- **Deploy guide**: [DEPLOY.md](./DEPLOY.md)
+- **Demo video script**: [docs/STORYBOARD.md](./docs/STORYBOARD.md), [docs/RECORDING.md](./docs/RECORDING.md)
+- **Submission text**: [docs/SUBMISSION.md](./docs/SUBMISSION.md)
 
 ## Run locally
 

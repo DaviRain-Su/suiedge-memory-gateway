@@ -60,6 +60,27 @@ Dashboard screenshots (live data):
 ![home](./screenshots/01-home.png)
 ![space detail](./screenshots/02-space-detail.png)
 
+## Links (judge start here)
+
+- **Repository**: https://github.com/DaviRain-Su/suiedge-memory-gateway
+- **Live demo (one-click)**: https://railway.com/new/template?template=https%3A%2F%2Fgithub.com%2FDaviRain-Su%2Fsuiedge-memory-gateway
+- **5-minute demo video script**: [docs/STORYBOARD.md](./STORYBOARD.md), [docs/RECORDING.md](./RECORDING.md)
+- **Deploy guide**: [DEPLOY.md](../DEPLOY.md)
+- **Architecture**: [DESIGN.md](../DESIGN.md), [DESIGN.detailed.md](../DESIGN.detailed.md)
+- **CI**: https://github.com/DaviRain-Su/suiedge-memory-gateway/actions
+
+## For the judge (5-minute read)
+
+1. `git clone https://github.com/DaviRain-Su/suiedge-memory-gateway && cd suiedge-memory-gateway`
+2. `pnpm install && pnpm test && cd move && sui move test && cd ..`  — every check passes offline, no keys needed.
+3. `pnpm run publish:testnet` — publishes the Move package and writes the package id to `.env.testnet`.
+4. `set -a && . .env.testnet && set +a && pnpm dev:live` — dev server with real Sui + Walrus.
+5. `SUI_OWNER=0x... ./scripts/demo.sh` — 7 HTTP calls, ~30 seconds, all 201/200, all on real testnet.
+6. Open the printed space detail URL with `?owner=0x...` to see the dashboard render the live data.
+
+That's the whole demo. The repo is open-source under MIT, the
+dashboard is a one-click Railway deploy, and the e2e vitest
+(`tests/gateway/e2e/mvp.test.ts`) runs the same flow in-process.
 ---
 
 [Chinese version](./SUBMISSION.zh.md)

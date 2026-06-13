@@ -60,6 +60,27 @@ Dashboard 截图（live 数据）：
 ![首页](./screenshots/01-home.png)
 ![空间详情](./screenshots/02-space-detail.png)
 
+## 链接（评委从这里开始）
+
+- **代码仓库**：https://github.com/DaviRain-Su/suiedge-memory-gateway
+- **一键部署**：https://railway.com/new/template?template=https%3A%2F%2Fgithub.com%2FDaviRain-Su%2Fsuiedge-memory-gateway
+- **5 分钟 Demo 视频脚本**：[docs/STORYBOARD.md](./STORYBOARD.md), [docs/RECORDING.md](./RECORDING.md)
+- **部署指南**：[DEPLOY.md](../DEPLOY.md)
+- **架构**：[DESIGN.md](../DESIGN.md), [DESIGN.detailed.md](../DESIGN.detailed.md)
+- **CI**：https://github.com/DaviRain-Su/suiedge-memory-gateway/actions
+
+## 评委 5 分钟看完
+
+1. `git clone https://github.com/DaviRain-Su/suiedge-memory-gateway && cd suiedge-memory-gateway`
+2. `pnpm install && pnpm test && cd move && sui move test && cd ..`  — 离线全部通过，无需任何密钥。
+3. `pnpm run publish:testnet` — 把 Move 包发到 testnet，把 package id 写进 `.env.testnet`。
+4. `set -a && . .env.testnet && set +a && pnpm dev:live` — dev 服务器开 live 模式。
+5. `SUI_OWNER=0x... ./scripts/demo.sh` — 7 个 HTTP 调用，~30 秒，全部 201/200，全部走真 testnet。
+6. 打开打印出的空间详情 URL，加 `?owner=0x...` 看 dashboard 渲染真数据。
+
+这就是完整 demo。代码 MIT 开源、Dashboard 一键 Railway 部署、
+e2e vitest（`tests/gateway/e2e/mvp.test.ts`）能在进程内跑同一套流程。
+
 ---
 
 [English Version](./SUBMISSION.md)
