@@ -121,7 +121,6 @@ set -a && . .env.testnet && set +a
 # 3) Run the dev server in live mode
 SUI_CLIENT_LIVE=1 pnpm dev
 ```
-
 What changes in live mode:
 
 - `LiveSuiClient` is wired (instead of `MockSuiClient`) and submits real PTBs via `SuiGrpcClient` for testnet, signed by `EnvKeypairSigner` loaded from `SUI_PRIVATE_KEY`.
@@ -129,4 +128,22 @@ What changes in live mode:
 - `requireAuth` calls `verifyPersonalMessageSignature` for every request — `AUTH_STUB_PASS=1` skips this for offline demos.
 - The deployer's keypair owns the `AgentSpace`. In a real product the user would sign in their own wallet and the gateway would forward the PTB; the MVP shortcut is documented in `DESIGN.detailed.md` §14.
 
+### Live verification (already run during build)
+
+```text
+published Move package id: 0xf4bf00ae02a356233837c7f96820b5ba0c3f646af7d4eb495589996febf50d53
+Walrus testnet round-trip: PUT blob → blobId u_pRa6Ur-kUbguw6nJMmncIy47e8BpKC-gi51MinjhE → GET bytes match
+Sui testnet createSpace PTB:  digest 93Z6uizbPrKwE7z82iwRjUULAcB9WXJTQ7YEWwpoQ99n
+scripts/demo.sh against live server:        7/7 steps pass in ~30s
+tests/gateway/live/testnet.test.ts:         2/2 pass
+tests/gateway/e2e/mvp.test.ts:              1/1 pass
+pnpm test (offline suite):                  36/36 pass
+sui move test:                              7/7 pass
+pnpm exec tsc --noEmit:                     clean
+```
+
+Dashboard screenshots from a live run (captured by `scripts/screenshot.mjs`):
+
+![home](./docs/screenshots/01-home.png)
+![space detail](./docs/screenshots/02-space-detail.png)
 [Chinese version](./README.zh.md)

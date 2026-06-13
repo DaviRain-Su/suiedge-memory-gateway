@@ -12,13 +12,13 @@
  * headers (the dev-wallet signer Day 6 wires uses SUI_OWNER_ADDRESS
  * directly as the calling identity).
  */
-import { Server } from '@modelcontextprotocol/sdk/server/index.js';
-import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { Server } from '@modelcontextprotocol/sdk/server/index';
+import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio';
 import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
-} from '@modelcontextprotocol/sdk/types.js';
-import { toolDefinitions } from './tools/index.js';
+} from '@modelcontextprotocol/sdk/types';
+import { toolDefinitions } from './tools/index';
 
 const server = new Server(
   { name: 'suiedge-memory-gateway', version: '0.1.0' },

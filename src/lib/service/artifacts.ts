@@ -3,14 +3,14 @@
  * Same Walrus-then-Sui-then-SQLite ordering as memories.
  */
 import type Database from 'better-sqlite3';
-import { openStore } from '../store.js';
-import { GatewayError } from '../errors.js';
-import { getSuiClient } from '../sui.js';
-import { getWalrus } from '../walrus.js';
-import { sha256Hex } from '../hash.js';
-import type { ArtifactRecord } from '../types.js';
-import { getSpace } from './spaces.js';
-import { getPolicy } from './policy.js';
+import { openStore } from '../store';
+import { GatewayError } from '../errors';
+import { getSuiClient } from '../sui';
+import { getWalrus } from '../walrus';
+import { sha256Hex } from '../hash';
+import type { ArtifactRecord } from '../types';
+import { getSpace } from './spaces';
+import { getPolicy } from './policy';
 
 interface WriteArtifactInput {
   spaceId: string;

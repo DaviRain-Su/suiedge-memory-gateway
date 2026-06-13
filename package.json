@@ -15,7 +15,9 @@
     "test:live": "SUI_CLIENT_LIVE=1 vitest run tests/gateway/live",
     "db:migrate": "node --experimental-strip-types scripts/migrate.ts",
     "mcp": "node --experimental-strip-types src/mcp/server.ts",
-    "publish:testnet": "bash scripts/publish-testnet.sh"
+    "publish:testnet": "bash scripts/publish-testnet.sh",
+    "dev:live": "set -a && . ./.env.testnet && set +a && SUI_CLIENT_LIVE=1 next dev -p 3000",
+    "start:live": "set -a && . ./.env.testnet && set +a && SUI_CLIENT_LIVE=1 next start -p 3000"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "latest",
@@ -33,6 +35,7 @@
     "@types/node": "latest",
     "@types/react": "latest",
     "@types/react-dom": "latest",
+    "playwright": "^1.60.0",
     "typescript": "latest",
     "vitest": "latest"
   }

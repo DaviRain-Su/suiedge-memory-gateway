@@ -5,10 +5,10 @@ import { canonicalString } from '@/lib/sui';
 import { useEffect, useState } from 'react';
 import type { ContextBundle } from '@/lib/types';
 
-export function MemoryTimeline({ spaceId }: { spaceId: string }) {
+export function MemoryTimeline({ spaceId, initial }: { spaceId: string; initial?: ContextBundle | null }) {
   const account = useCurrentAccount();
   const { mutate: sign } = useSignPersonalMessage();
-  const [bundle, setBundle] = useState<ContextBundle | null>(null);
+  const [bundle, setBundle] = useState<ContextBundle | null>(initial ?? null);
   const [error, setError] = useState<string | null>(null);
   const [writing, setWriting] = useState(false);
   const [draft, setDraft] = useState('');
@@ -37,7 +37,7 @@ export function MemoryTimeline({ spaceId }: { spaceId: string }) {
 
   useEffect(() => { void load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [account, spaceId]);
 
-  if (!account) return <p>Connect a wallet to view this space's memory.</p>;
+  if (!account && !bundle) return <p>Connect a wallet to view this space's memory.</p>;
   if (error) return <p style={{ color: '#f88' }}>error: {error}</p>;
   if (!bundle) return <p>loading…</p>;
 

@@ -3,9 +3,9 @@
  * the publisher and GET from the aggregator. The test double writes to an
  * in-memory map so the gateway can be smoke-tested offline.
  */
-import { config } from './config.js';
-import { GatewayError } from './errors.js';
-import { sha256Hex } from './hash.js';
+import { config } from './config';
+import { GatewayError } from './errors';
+import { sha256Hex } from './hash';
 
 export interface WalrusPublisher {
   /** PUT a blob. Returns the blob id (publisher-issued). */

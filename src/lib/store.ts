@@ -5,7 +5,7 @@
 import Database from 'better-sqlite3';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { config } from './config.js';
+import { config } from './config';
 
 let _db: Database.Database | null = null;
 

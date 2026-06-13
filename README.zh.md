@@ -69,7 +69,62 @@ policy.revoke
 - 第 4 天：访问策略、共享/撤销、多 Agent 演示。
 - 第 5 天：ProofLog、工件上传、Dashboard 打磨。
 - 第 6 天：部署、README、提交文案、五分钟演示视频。
+- 第 6 天：部署、README、提交文案、五分钟演示视频。
+## 本地运行
 
+```bash
+pnpm install
+sui move test                    # 7 Move tests
+pnpm exec tsc --noEmit           # typecheck
+pnpm test                        # 36 vitest tests
+pnpm dev                         # http://localhost:3000
+```
+
+## 架构
+
+三层：Agent 框架（LLM / SDK）调用 Next.js 网关；网关调用 Sui Move（`agent_space`、`memory_pointer`、`access_policy`）和 Walrus（HTTP PUT/GET）；链下 SQLite 索引维护 blob-id ↔ object-id 映射以加速读取。网关是唯一同时了解 Move 与 Walrus 的组件。详见 [DESIGN.md](./DESIGN.md) 与 [DESIGN.detailed.md](./DESIGN.detailed.md)。
+
+## 上线（testnet）
+
+```bash
+# 1) 拿 testnet SUI
+sui client new-address ed25519 testnet
+sui client switch --address <alias>
+sui client faucet
+
+# 2) 发布 Move 包，抓 package id
+pnpm run publish:testnet
+set -a && . .env.testnet && set +a
+
+# 3) 用 live 模式启动 dev 服务器
+SUI_CLIENT_LIVE=1 pnpm dev
+```
+
+Live 模式与离线模式的不同：
+
+- `LiveSuiClient` 替代 `MockSuiClient`，通过 `SuiGrpcClient` 提交真 PTB（testnet），用 `SUI_PRIVATE_KEY` 加载的 `EnvKeypairSigner` 签名。
+- `HttpWalrusPublisher` 写入 Walrus testnet public publisher、从 public aggregator 读取，默认 URL 已在 `src/lib/config.ts`。
+- `requireAuth` 对每个请求调用 `verifyPersonalMessageSignature`；`AUTH_STUB_PASS=1` 跳过校验用于离线演示。
+- 部署者 keypair 持有 `AgentSpace`。真实产品里由用户钱包签名、网关转发 PTB；MVP 的折中方案写在 `DESIGN.detailed.md` §14。
+
+### 上线验证（构建期间已跑过）
+
+```text
+已发布的 Move 包 id：0xf4bf00ae02a356233837c7f96820b5ba0c3f646af7d4eb495589996febf50d53
+Walrus testnet 往返：PUT → blobId u_pRa6Ur-kUbguw6nJMmncIy47e8BpKC-gi51MinjhE → GET 字节完全一致
+Sui testnet createSpace PTB：digest 93Z6uizbPrKwE7z82iwRjUULAcB9WXJTQ7YEWwpoQ99n
+scripts/demo.sh 跑真服务器：7/7 步通过，~30 秒
+tests/gateway/live/testnet.test.ts：2/2 通过
+tests/gateway/e2e/mvp.test.ts：1/1 通过
+pnpm test（离线套件）：36/36 通过
+sui move test：7/7 通过
+pnpm exec tsc --noEmit：clean
+```
+
+运行截图（来自 `scripts/screenshot.mjs`）：
+
+![首页](./docs/screenshots/01-home.png)
+![空间详情](./docs/screenshots/02-space-detail.png)
 ---
 
 [English Version](./README.md)

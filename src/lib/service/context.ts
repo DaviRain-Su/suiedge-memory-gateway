@@ -2,12 +2,12 @@
  * Service: ContextBundle. Reads the most recent memory blobs for a space,
  * fetches the bodies from Walrus, and returns them in version order.
  */
-import { openStore } from '../store.js';
-import { GatewayError } from '../errors.js';
-import { getWalrus } from '../walrus.js';
-import { getSpace } from './spaces.js';
-import { getPolicy } from './policy.js';
-import type { ContextBundle } from '../types.js';
+import { openStore } from '../store';
+import { GatewayError } from '../errors';
+import { getWalrus } from '../walrus';
+import { getSpace } from './spaces';
+import { getPolicy } from './policy';
+import type { ContextBundle } from '../types';
 
 export async function loadContext(input: {
   spaceId: string;

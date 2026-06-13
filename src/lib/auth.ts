@@ -7,8 +7,8 @@
  * and offline dev, AUTH_STUB_PASS=1 accepts the literal signature
  * value "stub".
  */
-import { GatewayError } from './errors.js';
-import { getSuiClient } from './sui.js';
+import { GatewayError } from './errors';
+import { getSuiClient } from './sui';
 
 export interface AuthContext {
   /** Verified Sui address (0x + 64 hex). */

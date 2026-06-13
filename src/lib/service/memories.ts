@@ -5,14 +5,14 @@
  * Walrus retains the bytes — they can be GC'd in a future migration.
  */
 import type Database from 'better-sqlite3';
-import { openStore } from '../store.js';
-import { GatewayError } from '../errors.js';
-import { getSuiClient } from '../sui.js';
-import { getWalrus } from '../walrus.js';
-import { sha256Hex } from '../hash.js';
-import type { MemoryRecord } from '../types.js';
-import { getSpace } from './spaces.js';
-import { getPolicy } from './policy.js';
+import { openStore } from '../store';
+import { GatewayError } from '../errors';
+import { getSuiClient } from '../sui';
+import { getWalrus } from '../walrus';
+import { sha256Hex } from '../hash';
+import type { MemoryRecord } from '../types';
+import { getSpace } from './spaces';
+import { getPolicy } from './policy';
 
 interface WriteMemoryInput {
   spaceId: string;

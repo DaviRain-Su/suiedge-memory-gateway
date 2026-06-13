@@ -2,14 +2,14 @@
  * Service: ProofLog records. kind=3; stores run_id/agent_id/input_hash/output_hash
  * alongside the blob.
  */
-import { openStore } from '../store.js';
-import { GatewayError } from '../errors.js';
-import { getSuiClient } from '../sui.js';
-import { getWalrus } from '../walrus.js';
-import { sha256Hex } from '../hash.js';
-import type { ProofLog } from '../types.js';
-import { getSpace } from './spaces.js';
-import { getPolicy } from './policy.js';
+import { openStore } from '../store';
+import { GatewayError } from '../errors';
+import { getSuiClient } from '../sui';
+import { getWalrus } from '../walrus';
+import { sha256Hex } from '../hash';
+import type { ProofLog } from '../types';
+import { getSpace } from './spaces';
+import { getPolicy } from './policy';
 
 interface WriteProofLogInput {
   spaceId: string;

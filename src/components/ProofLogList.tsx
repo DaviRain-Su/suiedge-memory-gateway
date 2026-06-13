@@ -5,10 +5,10 @@ import { canonicalString } from '@/lib/sui';
 import { useEffect, useState } from 'react';
 import type { ProofLog } from '@/lib/types';
 
-export function ProofLogList({ spaceId }: { spaceId: string }) {
+export function ProofLogList({ spaceId, initial }: { spaceId: string; initial?: ProofLog[] | null }) {
   const account = useCurrentAccount();
   const { mutate: sign } = useSignPersonalMessage();
-  const [items, setItems] = useState<ProofLog[] | null>(null);
+  const [items, setItems] = useState<ProofLog[] | null>(initial ?? null);
   const [error, setError] = useState<string | null>(null);
 
   async function load() {
@@ -32,7 +32,7 @@ export function ProofLogList({ spaceId }: { spaceId: string }) {
 
   useEffect(() => { void load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [account, spaceId]);
 
-  if (!account) return null;
+  if (!account && !items) return null;
   if (error) return <p style={{ color: '#f88' }}>{error}</p>;
   if (!items) return <p>loading…</p>;
   if (items.length === 0) return <p>No proof logs.</p>;

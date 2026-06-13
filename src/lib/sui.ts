@@ -13,10 +13,10 @@ import { SuiGrpcClient, type SuiGrpcClientOptions } from '@mysten/sui/grpc';
 import { Transaction, type TransactionObjectArgument } from '@mysten/sui/transactions';
 import { verifyPersonalMessageSignature } from '@mysten/sui/verify';
 import { bcs } from '@mysten/sui/bcs';
-import { config } from './config.js';
-import { GatewayError } from './errors.js';
-import { sha256Hex } from './hash.js';
-import { getSigner } from './signer.js';
+import { config } from './config';
+import { GatewayError } from './errors';
+import { sha256Hex } from './hash';
+import { getSigner } from './signer';
 
 export interface SuiMoveCallResult {
   spaceId: string;

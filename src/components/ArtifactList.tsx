@@ -5,10 +5,10 @@ import { canonicalString } from '@/lib/sui';
 import { useEffect, useState } from 'react';
 import type { ArtifactRecord } from '@/lib/types';
 
-export function ArtifactList({ spaceId }: { spaceId: string }) {
+export function ArtifactList({ spaceId, initial }: { spaceId: string; initial?: ArtifactRecord[] | null }) {
   const account = useCurrentAccount();
   const { mutate: sign } = useSignPersonalMessage();
-  const [items, setItems] = useState<ArtifactRecord[] | null>(null);
+  const [items, setItems] = useState<ArtifactRecord[] | null>(initial ?? null);
   const [error, setError] = useState<string | null>(null);
 
   async function load() {
@@ -32,7 +32,7 @@ export function ArtifactList({ spaceId }: { spaceId: string }) {
 
   useEffect(() => { void load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [account, spaceId]);
 
-  if (!account) return null;
+  if (!account && !items) return null;
   if (error) return <p style={{ color: '#f88' }}>{error}</p>;
   if (!items) return <p>loading…</p>;
   if (items.length === 0) return <p>No artifacts.</p>;

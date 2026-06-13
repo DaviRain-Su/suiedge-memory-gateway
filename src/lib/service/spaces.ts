@@ -3,10 +3,10 @@
  * in the spaces service.
  */
 import type Database from 'better-sqlite3';
-import { openStore } from '../store.js';
-import { GatewayError } from '../errors.js';
-import { getSuiClient } from '../sui.js';
-import type { AgentSpace } from '../types.js';
+import { openStore } from '../store';
+import { GatewayError } from '../errors';
+import { getSuiClient } from '../sui';
+import type { AgentSpace } from '../types';
 
 interface CreateSpaceInput {
   owner: string;

@@ -8,11 +8,11 @@
  *    Day 6+ follow-up).
  */
 import type Database from 'better-sqlite3';
-import { openStore } from '../store.js';
-import { GatewayError } from '../errors.js';
-import { getSuiClient } from '../sui.js';
-import type { AccessPolicy } from '../types.js';
-import { getSpace } from './spaces.js';
+import { openStore } from '../store';
+import { GatewayError } from '../errors';
+import { getSuiClient } from '../sui';
+import type { AccessPolicy } from '../types';
+import { getSpace } from './spaces';
 
 export interface GetPolicyInput {
   spaceId: string;

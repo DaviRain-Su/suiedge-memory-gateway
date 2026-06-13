@@ -9,6 +9,7 @@ coverage
 .walrus
 .env.testnet
 tsconfig.tsbuildinfo
+data/
 move/Move.lock
 move/Published.toml
 move/build/
