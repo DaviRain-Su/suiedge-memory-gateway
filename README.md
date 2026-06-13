@@ -69,3 +69,7 @@ policy.revoke
 - Day 4: Access policy, share/revoke, multi-agent demo.
 - Day 5: ProofLog, artifact upload, dashboard polish.
 - Day 6: deploy, README, submission text, five-minute demo video.
+
+---
+
+[Chinese version](./README.zh.md)

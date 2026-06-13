@@ -1,8 +1,8 @@
-# Move package sketch
+# Move 包草图
 
-Purpose: keep the hackathon Move scope small: anchor ownership, version pointers, and revocation on Sui; store memory/artifact bytes on Walrus.
+目的：将黑客松的 Move 范围控制在最小：所有权锚定、版本指针与撤销放在 Sui；记忆/工件字节存储在 Walrus。
 
-## Objects
+## 对象
 
 ```move
 public struct AgentSpace has key {
@@ -33,17 +33,17 @@ public struct AccessPolicy has key {
 }
 ```
 
-## Entry functions
+## 入口函数
 
 - `create_space(name)`
 - `add_memory_pointer(space, walrus_blob_id, content_hash)`
 - `share(space, subject, can_read, can_write, can_share)`
 - `revoke(policy)`
 
-## Rule
+## 规则
 
-No memory content is stored on Sui. Only pointers, hashes, ownership, policy, and versions are stored on-chain.
+记忆内容不存储在 Sui 上。只有指针、哈希、所有权、策略与版本存储在链上。
 
 ---
 
-[Chinese version](./README.zh.md)
+[English Version](./README.md)

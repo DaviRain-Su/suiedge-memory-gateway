@@ -33,3 +33,7 @@ AI agents need memory that is owned by the user, portable across tools, shareabl
 5. Reviewer agent writes a `ProofLog`.
 6. Owner revokes reviewer access.
 7. Dashboard shows Walrus blob IDs, Sui object IDs, versions, and policy state.
+
+---
+
+[Chinese version](./MVP.zh.md)

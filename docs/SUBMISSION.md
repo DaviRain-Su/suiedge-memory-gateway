@@ -30,3 +30,7 @@ Walrus provides durable, portable, verifiable data for agent memory and artifact
 - Save proof log.
 - Share access with another agent identity.
 - Revoke access and show blocked read/write.
+
+---
+
+[Chinese version](./SUBMISSION.zh.md)
