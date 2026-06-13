@@ -8,20 +8,30 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "check": "tsc --noEmit"
+    "check": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:move": "cd move && sui move test",
+    "db:migrate": "node --experimental-strip-types scripts/migrate.ts",
+    "mcp": "node --experimental-strip-types src/mcp/server.ts"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "latest",
     "@mysten/dapp-kit": "latest",
     "@mysten/sui": "latest",
+    "@tanstack/react-query": "^5.101.0",
+    "better-sqlite3": "latest",
     "next": "latest",
     "react": "latest",
     "react-dom": "latest",
     "zod": "latest"
   },
   "devDependencies": {
+    "@types/better-sqlite3": "latest",
     "@types/node": "latest",
     "@types/react": "latest",
     "@types/react-dom": "latest",
-    "typescript": "latest"
+    "typescript": "latest",
+    "vitest": "latest"
   }
 }
