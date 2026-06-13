@@ -10,7 +10,7 @@ const CreateBody = z.object({ name: z.string().min(1).max(64) });
 export async function POST(req: Request) {
   try {
     const body: CreateSpaceRequest = CreateBody.parse(await req.json());
-    const auth = requireAuth(req.headers, 'POST', '/v1/spaces', JSON.stringify(body));
+    const auth = await requireAuth(req.headers, 'POST', '/v1/spaces', JSON.stringify(body));
     const space = await createSpace({ owner: auth.address, name: body.name });
     return NextResponse.json(space, { status: 201 });
   } catch (err) {
@@ -31,7 +31,7 @@ export async function GET(req: Request) {
     if (!owner || !/^0x[0-9a-fA-F]{64}$/.test(owner)) {
       throw new GatewayError('BAD_REQUEST', 'owner query param required (0x + 64 hex)');
     }
-    requireAuth(req.headers, 'GET', `/v1/spaces?owner=${owner}`, '');
+    await requireAuth(req.headers, 'GET', `/v1/spaces?owner=${owner}`, '');
     const spaces = listSpaces({ owner });
     return NextResponse.json(spaces);
   } catch (err) {

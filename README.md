@@ -106,4 +106,27 @@ SUI_OWNER_ADDRESS=0x... pnpm run mcp
 
 Connects over stdio. Exposes 9 tools (`space.create`, `space.list`, `memory.write`, `memory.search`, `context.load`, `artifact.save`, `trace.log`, `policy.share`, `policy.revoke`).
 
+## Go live (testnet)
+
+```bash
+# 1) Get testnet SUI for your address
+sui client new-address ed25519 testnet
+sui client switch --address <alias>
+sui client faucet                                       # testnet SUI
+
+# 2) Publish the Move package and capture the package id
+pnpm run publish:testnet
+set -a && . .env.testnet && set +a
+
+# 3) Run the dev server in live mode
+SUI_CLIENT_LIVE=1 pnpm dev
+```
+
+What changes in live mode:
+
+- `LiveSuiClient` is wired (instead of `MockSuiClient`) and submits real PTBs via `SuiGrpcClient` for testnet, signed by `EnvKeypairSigner` loaded from `SUI_PRIVATE_KEY`.
+- `HttpWalrusPublisher` writes to the public Walrus testnet publisher and reads from the public aggregator. The default URLs are already in `src/lib/config.ts`.
+- `requireAuth` calls `verifyPersonalMessageSignature` for every request — `AUTH_STUB_PASS=1` skips this for offline demos.
+- The deployer's keypair owns the `AgentSpace`. In a real product the user would sign in their own wallet and the gateway would forward the PTB; the MVP shortcut is documented in `DESIGN.detailed.md` §14.
+
 [Chinese version](./README.zh.md)

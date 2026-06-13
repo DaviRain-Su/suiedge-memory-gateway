@@ -15,7 +15,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   try {
     const { id: spaceId } = await ctx.params;
     const body: WriteArtifactRequest = Body.parse(await req.json());
-    const auth = requireAuth(req.headers, 'POST', `/v1/spaces/${spaceId}/artifacts`, JSON.stringify(body));
+    const auth = await requireAuth(req.headers, 'POST', `/v1/spaces/${spaceId}/artifacts`, JSON.stringify(body));
     const rec = await writeArtifact({
       spaceId,
       caller: auth.address,
@@ -39,7 +39,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
   try {
     const { id: spaceId } = await ctx.params;
     const path = `/v1/spaces/${spaceId}/artifacts`;
-    const auth = requireAuth(req.headers, 'GET', path, '');
+    const auth = await requireAuth(req.headers, 'GET', path, '');
     const recs = listArtifacts({ spaceId, caller: auth.address });
     return NextResponse.json(recs);
   } catch (err) {

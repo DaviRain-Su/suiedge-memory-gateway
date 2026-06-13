@@ -13,7 +13,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   try {
     const { id: spaceId } = await ctx.params;
     const body: RevokeRequest = Body.parse(await req.json());
-    const auth = requireAuth(req.headers, 'POST', `/v1/spaces/${spaceId}/revoke`, JSON.stringify(body));
+    const auth = await requireAuth(req.headers, 'POST', `/v1/spaces/${spaceId}/revoke`, JSON.stringify(body));
     const pol = await revoke({ spaceId, caller: auth.address, policyId: body.policyId });
     return NextResponse.json(pol);
   } catch (err) {

@@ -12,8 +12,10 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:move": "cd move && sui move test",
+    "test:live": "SUI_CLIENT_LIVE=1 vitest run tests/gateway/live",
     "db:migrate": "node --experimental-strip-types scripts/migrate.ts",
-    "mcp": "node --experimental-strip-types src/mcp/server.ts"
+    "mcp": "node --experimental-strip-types src/mcp/server.ts",
+    "publish:testnet": "bash scripts/publish-testnet.sh"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "latest",

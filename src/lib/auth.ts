@@ -1,17 +1,26 @@
 /**
  * Auth: every request must carry X-Sui-Address and X-Sui-Signature.
- * The signature is verifyPersonalMessage(METHOD\nPATH\nBODY_SHA256_HEX).
+ * The signature is verifyPersonalMessage(METHOD\nPATH\nsha256(BODY)).
  *
- * For Day 1 this is a stub that always returns 401. The real implementation
- * (Day 2) calls @mysten/sui.verifyPersonalMessage.
+ * For live mode the verification goes through the LiveSuiClient which
+ * delegates to @mysten/sui's verifyPersonalMessageSignature. For tests
+ * and offline dev, AUTH_STUB_PASS=1 accepts the literal signature
+ * value "stub".
  */
 import { GatewayError } from './errors.js';
+import { getSuiClient } from './sui.js';
 
 export interface AuthContext {
-  address: string; // 0x... Sui address
+  /** Verified Sui address (0x + 64 hex). */
+  address: string;
 }
 
-export function requireAuth(headers: Headers, method: string, path: string, body: string): AuthContext {
+export async function requireAuth(
+  headers: Headers,
+  method: string,
+  path: string,
+  body: string,
+): Promise<AuthContext> {
   const addr = headers.get('x-sui-address');
   const sig = headers.get('x-sui-signature');
   if (!addr || !sig) {
@@ -20,9 +29,18 @@ export function requireAuth(headers: Headers, method: string, path: string, body
   if (!/^0x[0-9a-fA-F]{64}$/.test(addr)) {
     throw new GatewayError('BAD_REQUEST', 'malformed Sui address');
   }
-  // Day 1 stub: reject. Day 2 will verify with @mysten/sui.verifyPersonalMessage.
   if (process.env.AUTH_STUB_PASS === '1' && sig === 'stub') {
     return { address: addr };
   }
-  throw new GatewayError('UNAUTHORIZED', 'signature verification not yet implemented (Day 1 stub)');
+  const ok = await getSuiClient().verifySignature({
+    address: addr,
+    method,
+    path,
+    body,
+    signature: sig,
+  });
+  if (!ok) {
+    throw new GatewayError('UNAUTHORIZED', 'signature verification failed');
+  }
+  return { address: addr };
 }

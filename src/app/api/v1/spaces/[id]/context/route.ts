@@ -9,7 +9,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
     const url = new URL(req.url);
     const maxItems = Number(url.searchParams.get('maxItems') ?? 50);
     const path = `/v1/spaces/${spaceId}/context?maxItems=${maxItems}`;
-    const auth = requireAuth(req.headers, 'GET', path, '');
+    const auth = await requireAuth(req.headers, 'GET', path, '');
     const bundle = await loadContext({ spaceId, caller: auth.address, maxItems });
     return NextResponse.json(bundle);
   } catch (err) {

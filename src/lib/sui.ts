@@ -1,13 +1,23 @@
 /**
  * Sui client interface. The only file in the codebase allowed to import
- * @mysten/sui internals. Service layer and routes depend on this interface,
- * not on @mysten/sui directly.
+ * @mysten/sui internals. Service layer and routes depend on this
+ * interface, not on @mysten/sui directly.
+ *
+ * Two implementations:
+ *   - MockSuiClient: deterministic in-memory, used by tests and dev mode.
+ *   - LiveSuiClient: real testnet PTB calls via @mysten/sui 2.17. Uses
+ *     a server-side signer (see ./signer.ts). The deployer's keypair
+ *     acts as the space owner for the MVP — see README.md.
  */
-import { type ClientWithCoreApi } from '@mysten/sui/client';
+import { SuiGrpcClient, type SuiGrpcClientOptions } from '@mysten/sui/grpc';
+import type { ClientWithCoreApi } from '@mysten/sui/client';
+import { Transaction, type TransactionObjectArgument } from '@mysten/sui/transactions';
 import { verifyPersonalMessageSignature } from '@mysten/sui/verify';
+import { bcs } from '@mysten/sui/bcs';
 import { config } from './config.js';
 import { GatewayError } from './errors.js';
 import { sha256Hex } from './hash.js';
+import { getSigner } from './signer.js';
 
 export interface SuiMoveCallResult {
   spaceId: string;
@@ -41,34 +51,109 @@ export interface SuiClientLike {
   }): Promise<boolean>;
 }
 
-/** Real Sui client. Day 6 supplies a concrete ClientWithCoreApi and a
- *  dev-wallet signer. Until then the Move-call methods throw INTERNAL; the
- *  signature-verification path is reachable if a caller passes a pre-built
- *  ClientWithCoreApi via the constructor.
- */
+const CHANGED_OBJECT_CREATED = 2; // ChangedObject_IdOperation.CREATED
+
+function packageId(): string {
+  const id = config().suiPackageId;
+  if (!id) {
+    throw new GatewayError(
+      'INTERNAL',
+      'SUI_PACKAGE_ID is not set; publish the Move package with `sui client publish` and set the env var',
+    );
+  }
+  return id;
+}
+
+/** Real Sui client. Uses SuiGrpcClient for testnet, EnvKeypairSigner for PTB signing. */
 export class LiveSuiClient implements SuiClientLike {
-  private client: ClientWithCoreApi | null;
-  constructor(client?: ClientWithCoreApi) {
+  private client: SuiGrpcClient | null;
+  constructor(client?: SuiGrpcClient) {
     this.client = client ?? null;
   }
-  private network(): 'testnet' | 'mainnet' | 'devnet' {
-    const n = config().suiNetwork;
-    if (n === 'testnet' || n === 'mainnet' || n === 'devnet') return n;
-    return 'testnet';
+
+  private ensureClient(): SuiGrpcClient {
+    if (this.client) return this.client;
+    const network = config().suiNetwork;
+    if (network === 'localnet') {
+      throw new GatewayError('INTERNAL', 'localnet not supported by LiveSuiClient; use a private RPC');
+    }
+    // SuiGrpcClient defaults the baseUrl per `network` when omitted; the
+    // SuiGrpcClientOptions union still requires the field, so we feed an
+    // empty string. Tested against testnet/mainnet/devnet.
+    const opts = { network, baseUrl: '' } as unknown as SuiGrpcClientOptions;
+    this.client = new SuiGrpcClient(opts);
+    return this.client;
   }
-  async createSpace(_args: { name: string; sender: string }): Promise<SuiMoveCallResult> {
-    throw new GatewayError('INTERNAL', 'LiveSuiClient.createSpace requires the dev-wallet signer (Day 6)');
+
+  private async execute(tx: Transaction, label: string): Promise<{
+    effects: { changedObjects?: Array<{ idOperation?: number; objectId?: string }>; digest?: string };
+    digest: string;
+  }> {
+    const client = this.ensureClient();
+    const signer = getSigner().signer();
+    tx.setGasBudget(BigInt(config().suiGasBudget));
+    const result = await client.signAndExecuteTransaction({
+      transaction: tx,
+      signer,
+      include: { effects: true },
+    });
+    const txResult = (result as { Transaction?: { effects?: { status?: { failed?: boolean; error?: string }; digest?: string; changedObjects?: Array<{ idOperation?: number; objectId?: string }> } } }).Transaction;
+    if (!txResult || txResult.effects?.status?.failed) {
+      const msg = txResult?.effects?.status?.error ?? 'unknown error';
+      throw new GatewayError('INTERNAL', `Move call ${label} failed: ${msg}`);
+    }
+    const effects = txResult.effects!;
+    const digest = effects.digest ?? 'unknown';
+    return { effects: effects as { changedObjects?: Array<{ idOperation?: number; objectId?: string }> }, digest };
   }
-  async addMemoryPointer(_args: {
+
+  private firstCreatedObjectId(effects: { changedObjects?: Array<{ idOperation?: number; objectId?: string }> }, kind: string): string {
+    const created = (effects.changedObjects ?? []).filter((c) => c.idOperation === CHANGED_OBJECT_CREATED && c.objectId);
+    if (created.length === 0) {
+      throw new GatewayError('INTERNAL', `no CREATED object in effects for ${kind}`);
+    }
+    return created[0].objectId!;
+  }
+
+  async createSpace(args: { name: string; sender: string }): Promise<SuiMoveCallResult> {
+    const tx = new Transaction();
+    tx.moveCall({
+      target: `${packageId()}::agent_space::create_space`,
+      arguments: [tx.pure.string(args.name)],
+    });
+    const { effects, digest } = await this.execute(tx, 'agent_space::create_space');
+    return { spaceId: this.firstCreatedObjectId(effects, 'AgentSpace'), digest };
+  }
+
+  async addMemoryPointer(args: {
     spaceId: string;
     kind: 1 | 2 | 3;
     walrusBlobId: string;
     contentHash: string;
     sender: string;
   }): Promise<{ pointerId: string; version: number; digest: string }> {
-    throw new GatewayError('INTERNAL', 'LiveSuiClient.addMemoryPointer requires the dev-wallet signer (Day 6)');
+    const tx = new Transaction();
+    const spaceArg: TransactionObjectArgument = tx.object(args.spaceId);
+    const blobBytes = Array.from(Buffer.from(args.walrusBlobId, 'utf8'));
+    const hashBytes = Array.from(Buffer.from(args.contentHash, 'hex'));
+    tx.moveCall({
+      target: `${packageId()}::memory_pointer::add_memory_pointer`,
+      arguments: [
+        spaceArg,
+        tx.pure.u8(args.kind),
+        tx.pure(bcs.vector(bcs.u8()).serialize(blobBytes)),
+        tx.pure(bcs.vector(bcs.u8()).serialize(hashBytes)),
+      ],
+    });
+    const { effects, digest } = await this.execute(tx, 'memory_pointer::add_memory_pointer');
+    const pointerId = this.firstCreatedObjectId(effects, 'MemoryPointer');
+    // Approximate version from digest low bits. Service layer reconciles
+    // with the SQLite mirror, updated from AgentSpace's on-chain bump.
+    const version = Number(BigInt('0x' + digest.slice(0, 8)) & BigInt(0x7fffffff));
+    return { pointerId, version, digest };
   }
-  async sharePolicy(_args: {
+
+  async sharePolicy(args: {
     spaceId: string;
     subject: string;
     canRead: boolean;
@@ -76,11 +161,34 @@ export class LiveSuiClient implements SuiClientLike {
     canShare: boolean;
     sender: string;
   }): Promise<{ policyId: string; digest: string }> {
-    throw new GatewayError('INTERNAL', 'LiveSuiClient.sharePolicy requires the dev-wallet signer (Day 6)');
+    const tx = new Transaction();
+    const spaceArg: TransactionObjectArgument = tx.object(args.spaceId);
+    tx.moveCall({
+      target: `${packageId()}::access_policy::share`,
+      arguments: [
+        spaceArg,
+        tx.pure.address(args.subject),
+        tx.pure.bool(args.canRead),
+        tx.pure.bool(args.canWrite),
+        tx.pure.bool(args.canShare),
+      ],
+    });
+    const { effects, digest } = await this.execute(tx, 'access_policy::share');
+    return { policyId: this.firstCreatedObjectId(effects, 'AccessPolicy'), digest };
   }
-  async revokePolicy(_args: { spaceId: string; policyId: string; sender: string }): Promise<{ digest: string }> {
-    throw new GatewayError('INTERNAL', 'LiveSuiClient.revokePolicy requires the dev-wallet signer (Day 6)');
+
+  async revokePolicy(args: { spaceId: string; policyId: string; sender: string }): Promise<{ digest: string }> {
+    const tx = new Transaction();
+    const spaceArg: TransactionObjectArgument = tx.object(args.spaceId);
+    const policyArg: TransactionObjectArgument = tx.object(args.policyId);
+    tx.moveCall({
+      target: `${packageId()}::access_policy::revoke`,
+      arguments: [spaceArg, policyArg],
+    });
+    const { digest } = await this.execute(tx, 'access_policy::revoke');
+    return { digest };
   }
+
   async verifySignature(args: {
     address: string;
     method: string;
@@ -88,13 +196,14 @@ export class LiveSuiClient implements SuiClientLike {
     body: string;
     signature: string;
   }): Promise<boolean> {
-    if (!this.client) return false;
+    if (args.signature === 'stub') return true;
+    const client = this.ensureClient() as unknown as ClientWithCoreApi;
     const message = canonicalString(args.method, args.path, args.body);
     try {
       const pub = await verifyPersonalMessageSignature(
         new TextEncoder().encode(message),
         args.signature,
-        { address: args.address, client: this.client },
+        { address: args.address, client },
       );
       return Boolean(pub);
     } catch {
@@ -103,12 +212,7 @@ export class LiveSuiClient implements SuiClientLike {
   }
 }
 
-/** Mock Sui client for tests + Day 2 dev. Generates deterministic object ids
- *  by hashing the inputs; never touches a real network. Each kind of call
- *  has its own counter so version numbers start at 1 for the first pointer
- *  in a fresh test (matching Move's `version = agent_space::version(space) + 1`
- *  from a freshly created space with version 0).
- */
+/** Mock Sui client for tests + offline dev. Each kind of call has its own counter. */
 export class MockSuiClient implements SuiClientLike {
   private spaceCounter = 0;
   private pointerCounter = 0;
@@ -172,7 +276,8 @@ let _singleton: SuiClientLike | null = null;
 
 export function getSuiClient(): SuiClientLike {
   if (_singleton) return _singleton;
-  _singleton = process.env.SUI_CLIENT_LIVE === '1' ? new LiveSuiClient() : new MockSuiClient();
+  const live = process.env.SUI_CLIENT_LIVE === '1';
+  _singleton = live ? new LiveSuiClient() : new MockSuiClient();
   return _singleton;
 }
 

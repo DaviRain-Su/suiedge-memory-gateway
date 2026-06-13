@@ -16,7 +16,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   try {
     const { id: spaceId } = await ctx.params;
     const body: ShareRequest = Body.parse(await req.json());
-    const auth = requireAuth(req.headers, 'POST', `/v1/spaces/${spaceId}/share`, JSON.stringify(body));
+    const auth = await requireAuth(req.headers, 'POST', `/v1/spaces/${spaceId}/share`, JSON.stringify(body));
     const pol = await share({
       spaceId,
       caller: auth.address,
