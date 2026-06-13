@@ -70,6 +70,40 @@ policy.revoke
 - Day 5: ProofLog, artifact upload, dashboard polish.
 - Day 6: deploy, README, submission text, five-minute demo video.
 
----
+[Chinese version](./README.zh.md)
+
+## Run locally
+
+```bash
+pnpm install
+sui move test                    # 7 Move tests
+pnpm exec tsc --noEmit           # typecheck
+pnpm test                        # 36 vitest tests
+pnpm dev                         # Next.js dev server on http://localhost:3000
+```
+
+## Architecture (one paragraph)
+
+Three layers: agent frameworks (LLM / SDK) call into a Next.js gateway; the gateway calls Sui Move (`agent_space`, `memory_pointer`, `access_policy`) and Walrus (HTTP PUT/GET); an off-chain SQLite index keeps blob-id ↔ object-id mappings for fast reads. The gateway is the only component that knows both Move and Walrus. See [DESIGN.md](./DESIGN.md) for the architecture diagram and [DESIGN.detailed.md](./DESIGN.detailed.md) for file-level implementation specs.
+
+## Demo
+
+```bash
+# In one terminal
+pnpm dev
+
+# In another terminal
+OWNER=0x...your_address REVIEWER=0x...other_address AUTH_STUB=1 bash docs/demo.sh
+```
+
+`AUTH_STUB=1` lets the gateway accept the literal signature `stub` so the demo runs without a real wallet signer. For production, replace `src/lib/auth.ts` `requireAuth` with `@mysten/sui`'s `verifyPersonalMessage` and a `LiveSuiClient`.
+
+## Run the MCP server
+
+```bash
+SUI_OWNER_ADDRESS=0x... pnpm run mcp
+```
+
+Connects over stdio. Exposes 9 tools (`space.create`, `space.list`, `memory.write`, `memory.search`, `context.load`, `artifact.save`, `trace.log`, `policy.share`, `policy.revoke`).
 
 [Chinese version](./README.zh.md)

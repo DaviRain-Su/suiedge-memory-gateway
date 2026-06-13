@@ -2,9 +2,6 @@
  * Sui client interface. The only file in the codebase allowed to import
  * @mysten/sui internals. Service layer and routes depend on this interface,
  * not on @mysten/sui directly.
- *
- * Day 2-5 uses the MockSuiClient for every test. The LiveSuiClient's
- * Move-call methods throw INTERNAL until Day 6 wires the dev-wallet signer.
  */
 import { type ClientWithCoreApi } from '@mysten/sui/client';
 import { verifyPersonalMessageSignature } from '@mysten/sui/verify';
@@ -44,7 +41,7 @@ export interface SuiClientLike {
   }): Promise<boolean>;
 }
 
-/** Real Sui client. Day 6 will supply a concrete ClientWithCoreApi and a
+/** Real Sui client. Day 6 supplies a concrete ClientWithCoreApi and a
  *  dev-wallet signer. Until then the Move-call methods throw INTERNAL; the
  *  signature-verification path is reachable if a caller passes a pre-built
  *  ClientWithCoreApi via the constructor.
@@ -91,10 +88,7 @@ export class LiveSuiClient implements SuiClientLike {
     body: string;
     signature: string;
   }): Promise<boolean> {
-    if (!this.client) {
-      // Without a concrete client we cannot verify. Reject.
-      return false;
-    }
+    if (!this.client) return false;
     const message = canonicalString(args.method, args.path, args.body);
     try {
       const pub = await verifyPersonalMessageSignature(
@@ -110,13 +104,20 @@ export class LiveSuiClient implements SuiClientLike {
 }
 
 /** Mock Sui client for tests + Day 2 dev. Generates deterministic object ids
- *  by hashing the inputs; never touches a real network.
+ *  by hashing the inputs; never touches a real network. Each kind of call
+ *  has its own counter so version numbers start at 1 for the first pointer
+ *  in a fresh test (matching Move's `version = agent_space::version(space) + 1`
+ *  from a freshly created space with version 0).
  */
 export class MockSuiClient implements SuiClientLike {
-  private counter = 0;
+  private spaceCounter = 0;
+  private pointerCounter = 0;
+  private policyCounter = 0;
+  private revokeCounter = 0;
+
   createSpace(_args: { name: string; sender: string }): Promise<SuiMoveCallResult> {
-    this.counter += 1;
-    const spaceId = '0x' + sha256Hex(`space:${_args.sender}:${_args.name}:${this.counter}`).slice(0, 64).padEnd(64, '0');
+    this.spaceCounter += 1;
+    const spaceId = '0x' + sha256Hex(`space:${_args.sender}:${_args.name}:${this.spaceCounter}`).slice(0, 64).padEnd(64, '0');
     return Promise.resolve({ spaceId, digest: sha256Hex(`digest:${spaceId}`).slice(0, 32) });
   }
   addMemoryPointer(args: {
@@ -126,12 +127,11 @@ export class MockSuiClient implements SuiClientLike {
     contentHash: string;
     sender: string;
   }): Promise<{ pointerId: string; version: number; digest: string }> {
-    this.counter += 1;
-    const pointerId = '0x' + sha256Hex(`pointer:${args.spaceId}:${args.walrusBlobId}:${this.counter}`).slice(0, 64).padEnd(64, '0');
-    const version = this.counter;
+    this.pointerCounter += 1;
+    const pointerId = '0x' + sha256Hex(`pointer:${args.spaceId}:${args.walrusBlobId}:${this.pointerCounter}`).slice(0, 64).padEnd(64, '0');
     return Promise.resolve({
       pointerId,
-      version,
+      version: this.pointerCounter,
       digest: sha256Hex(`digest:${pointerId}`).slice(0, 32),
     });
   }
@@ -143,13 +143,13 @@ export class MockSuiClient implements SuiClientLike {
     canShare: boolean;
     sender: string;
   }): Promise<{ policyId: string; digest: string }> {
-    this.counter += 1;
-    const policyId = '0x' + sha256Hex(`policy:${args.spaceId}:${args.subject}:${this.counter}`).slice(0, 64).padEnd(64, '0');
+    this.policyCounter += 1;
+    const policyId = '0x' + sha256Hex(`policy:${args.spaceId}:${args.subject}:${this.policyCounter}`).slice(0, 64).padEnd(64, '0');
     return Promise.resolve({ policyId, digest: sha256Hex(`digest:${policyId}`).slice(0, 32) });
   }
   revokePolicy(_args: { spaceId: string; policyId: string; sender: string }): Promise<{ digest: string }> {
-    this.counter += 1;
-    return Promise.resolve({ digest: sha256Hex(`revoke:${_args.policyId}:${this.counter}`).slice(0, 32) });
+    this.revokeCounter += 1;
+    return Promise.resolve({ digest: sha256Hex(`revoke:${_args.policyId}:${this.revokeCounter}`).slice(0, 32) });
   }
   async verifySignature(args: {
     address: string;
